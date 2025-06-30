@@ -32,9 +32,9 @@ class ProfilePage extends StatelessWidget {
               child: ElevatedButton.icon(
                 onPressed: () {
                   // TODO: 프로필 편집 기능 구현 예정
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('프로필 편집 화면은 준비 중입니다.')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('준비 중입니다.')));
                 },
                 icon: const Icon(Icons.edit),
                 label: const Text('프로필 편집'),

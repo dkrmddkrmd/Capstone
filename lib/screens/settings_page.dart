@@ -54,10 +54,7 @@ class SettingTile extends StatelessWidget {
                 messenger.hideCurrentSnackBar();
                 messenger.showSnackBar(
                   const SnackBar(
-                    content: Text(
-                      '⚠️ 아직 개발 준비 중입니다',
-                      style: TextStyle(color: white),
-                    ),
+                    content: Text('준비 중입니다', style: TextStyle(color: white)),
                     backgroundColor: Colors.black87,
                     duration: Duration(seconds: 2),
                   ),
