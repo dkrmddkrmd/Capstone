@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  static const Color sangmyungBlue = Color(0xFF1A3276); // 상명대 남색
+  static const Color smBlue = Color(0xFF1A3276); // 상명대 남색
 
   @override
   Widget build(BuildContext context) {
@@ -11,8 +11,8 @@ class HomePage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('홈'),
         automaticallyImplyLeading: false,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: smBlue,
+        foregroundColor: Colors.white,
         elevation: 1,
       ),
       body: Padding(
@@ -58,7 +58,7 @@ class HomePage extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: const [
-                HomeNavButton(label: '강의 정보', route: '/lecturedetail'),
+                HomeNavButton(label: '강의 정보', route: '/settings'),
                 HomeNavButton(label: '시위 정보', route: '/demoninfo'),
                 HomeNavButton(label: '공지사항', route: '/notices'),
               ],
@@ -75,7 +75,7 @@ class LectureTile extends StatelessWidget {
   final String title;
   const LectureTile({required this.title, super.key});
 
-  static const Color sangmyungBlue = HomePage.sangmyungBlue;
+  static const Color sangmyungBlue = HomePage.smBlue;
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +111,7 @@ class HomeNavButton extends StatelessWidget {
   final String route;
   const HomeNavButton({required this.label, required this.route, super.key});
 
-  static const Color sangmyungBlue = HomePage.sangmyungBlue;
+  static const Color sangmyungBlue = HomePage.smBlue;
 
   @override
   Widget build(BuildContext context) {
