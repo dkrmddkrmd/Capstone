@@ -10,6 +10,7 @@ class LectureDetailPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('강의 상세'),
+        automaticallyImplyLeading: false,
         backgroundColor: smBlue,
         foregroundColor: Colors.white,
       ),

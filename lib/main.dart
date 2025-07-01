@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:myproject/main_navigation_page.dart';
 import 'screens/login_page.dart';
 import 'screens/home_page.dart';
 import 'screens/profile_page.dart';
@@ -25,6 +26,7 @@ class MyProject extends StatelessWidget {
       initialRoute: '/login',
       routes: {
         '/login': (context) => const LoginPage(),
+        '/main': (context) => const MainNavigationPage(),
         '/home': (context) => const HomePage(),
         '/profile': (context) => const ProfilePage(),
         '/lecturedetail': (context) => const LectureDetailPage(),

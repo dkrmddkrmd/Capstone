@@ -10,6 +10,7 @@ class DepartmentNoticePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('전공별 공지'),
+        automaticallyImplyLeading: false,
         backgroundColor: smBlue,
         foregroundColor: Colors.white,
         elevation: 1,

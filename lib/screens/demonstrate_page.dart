@@ -10,6 +10,7 @@ class DemonstratePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('시위 정보'),
+        automaticallyImplyLeading: false,
         backgroundColor: smBlue,
         foregroundColor: Colors.white,
         elevation: 1,

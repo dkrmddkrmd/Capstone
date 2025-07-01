@@ -10,6 +10,7 @@ class ProfilePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('마이페이지'),
+        automaticallyImplyLeading: false,
         backgroundColor: sangmyungBlue,
         foregroundColor: Colors.white,
       ),

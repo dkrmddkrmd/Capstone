@@ -1,16 +1,9 @@
 import 'package:flutter/material.dart';
 
-class HomePage extends StatefulWidget {
+class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   static const Color smBlue = Color(0xFF1A3276); // 상명대 남색
-
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  int _selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +11,7 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: const Text('홈'),
         automaticallyImplyLeading: false,
-        backgroundColor: HomePage.smBlue,
+        backgroundColor: smBlue,
         foregroundColor: Colors.white,
         elevation: 1,
       ),
@@ -61,46 +54,7 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-
-      // 🔹 하단 네비게이션 바 (아이콘만 + 순서 변경)
-      bottomNavigationBar: BottomNavigationBar(
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.campaign), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: ''),
-        ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: HomePage.smBlue,
-        unselectedItemColor: Colors.grey,
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
-      ),
     );
-  }
-
-  // 🔹 하단 탭 클릭 시 처리
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    switch (index) {
-      case 0:
-        Navigator.pushNamed(context, '/notices'); // 전공 공지
-        break;
-      case 1:
-        Navigator.pushNamed(context, '/demoninfo'); // 시위 정보
-        break;
-      case 2:
-        Navigator.pushNamed(context, '/profile'); // 마이페이지
-        break;
-      case 3:
-        Navigator.pushNamed(context, '/settings'); // 환경 설정
-        break;
-    }
   }
 }
 

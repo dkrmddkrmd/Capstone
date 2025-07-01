@@ -11,6 +11,7 @@ class SettingsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('설정'),
+        automaticallyImplyLeading: false,
         backgroundColor: smBlue,
         foregroundColor: Colors.white,
         elevation: 1,
