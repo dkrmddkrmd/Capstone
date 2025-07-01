@@ -6,15 +6,17 @@ import 'screens/profile_page.dart';
 import 'screens/settings_page.dart';
 
 class MainNavigationPage extends StatefulWidget {
-  const MainNavigationPage({super.key});
+  final int initialIndex; // 🔹 외부에서 초기 탭 인덱스를 받을 수 있도록 추가
+
+  const MainNavigationPage({this.initialIndex = 0, super.key}); // 🔹 기본값은 0 (홈)
 
   @override
   State<MainNavigationPage> createState() => _MainNavigationPageState();
 }
 
 class _MainNavigationPageState extends State<MainNavigationPage> {
-  final PageController _pageController = PageController();
-  int _selectedIndex = 0;
+  late PageController _pageController;
+  late int _selectedIndex;
 
   static const Color smBlue = Color(0xFF1A3276);
 
@@ -25,6 +27,15 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     ProfilePage(),
     SettingsPage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialIndex; // 🔹 초기 탭 인덱스 지정
+    _pageController = PageController(
+      initialPage: _selectedIndex,
+    ); // 🔹 초기 페이지 설정
+  }
 
   void _onItemTapped(int index) {
     setState(() => _selectedIndex = index);

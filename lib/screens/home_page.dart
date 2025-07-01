@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/lecture.dart';
 
 class HomePage extends StatelessWidget {
-  const HomePage({super.key}); // const 제거
+  const HomePage({super.key});
 
   static const Color smBlue = Color(0xFF1A3276); // 상명대 남색
 
@@ -27,20 +27,12 @@ class HomePage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 사용자 정보
+            // 사용자 정보 (탭 기능 제거)
             Row(
-              children: [
-                GestureDetector(
-                  onTap: () {
-                    Navigator.pushNamed(context, '/profile');
-                  },
-                  child: const CircleAvatar(
-                    radius: 30,
-                    child: Icon(Icons.person, size: 30),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Text(
+              children: const [
+                CircleAvatar(radius: 30, child: Icon(Icons.person, size: 30)),
+                SizedBox(width: 12),
+                Text(
                   '사용자',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
