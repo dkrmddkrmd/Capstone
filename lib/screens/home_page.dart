@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   static const Color smBlue = Color(0xFF1A3276); // 상명대 남색
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  int _selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -11,7 +18,7 @@ class HomePage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('홈'),
         automaticallyImplyLeading: false,
-        backgroundColor: smBlue,
+        backgroundColor: HomePage.smBlue,
         foregroundColor: Colors.white,
         elevation: 1,
       ),
@@ -25,7 +32,7 @@ class HomePage extends StatelessWidget {
               children: [
                 GestureDetector(
                   onTap: () {
-                    Navigator.pushNamed(context, '/profile'); // 마이페이지로 이동
+                    Navigator.pushNamed(context, '/profile');
                   },
                   child: const CircleAvatar(
                     radius: 30,
@@ -51,22 +58,49 @@ class HomePage extends StatelessWidget {
                 ],
               ),
             ),
-
-            const SizedBox(height: 12),
-
-            // 하단 버튼 3개
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: const [
-                HomeNavButton(label: '강의 정보', route: '/settings'),
-                HomeNavButton(label: '시위 정보', route: '/demoninfo'),
-                HomeNavButton(label: '공지사항', route: '/notices'),
-              ],
-            ),
           ],
         ),
       ),
+
+      // 🔹 하단 네비게이션 바 (아이콘만 + 순서 변경)
+      bottomNavigationBar: BottomNavigationBar(
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: ''),
+          BottomNavigationBarItem(icon: Icon(Icons.campaign), label: ''),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: ''),
+        ],
+        currentIndex: _selectedIndex,
+        selectedItemColor: HomePage.smBlue,
+        unselectedItemColor: Colors.grey,
+        showSelectedLabels: false,
+        showUnselectedLabels: false,
+        onTap: _onItemTapped,
+        type: BottomNavigationBarType.fixed,
+      ),
     );
+  }
+
+  // 🔹 하단 탭 클릭 시 처리
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    switch (index) {
+      case 0:
+        Navigator.pushNamed(context, '/notices'); // 전공 공지
+        break;
+      case 1:
+        Navigator.pushNamed(context, '/demoninfo'); // 시위 정보
+        break;
+      case 2:
+        Navigator.pushNamed(context, '/profile'); // 마이페이지
+        break;
+      case 3:
+        Navigator.pushNamed(context, '/settings'); // 환경 설정
+        break;
+    }
   }
 }
 
@@ -100,32 +134,6 @@ class LectureTile extends StatelessWidget {
         onTap: () {
           Navigator.pushNamed(context, '/lecturedetail');
         },
-      ),
-    );
-  }
-}
-
-// 🔹 하단 네비게이션 버튼
-class HomeNavButton extends StatelessWidget {
-  final String label;
-  final String route;
-  const HomeNavButton({required this.label, required this.route, super.key});
-
-  static const Color sangmyungBlue = HomePage.smBlue;
-
-  @override
-  Widget build(BuildContext context) {
-    return ElevatedButton(
-      onPressed: () => Navigator.pushNamed(context, route),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: sangmyungBlue,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
       ),
     );
   }
