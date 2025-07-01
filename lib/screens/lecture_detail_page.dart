@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
+import '../models/lecture.dart';
 
 class LectureDetailPage extends StatelessWidget {
   const LectureDetailPage({super.key});
 
-  static const Color smBlue = Color(0xFF1A3276); // 상명대 남색
-
   @override
   Widget build(BuildContext context) {
+    final Lecture lecture =
+        ModalRoute.of(context)!.settings.arguments as Lecture;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('강의 상세'),
-        automaticallyImplyLeading: false,
-        backgroundColor: smBlue,
+        title: Text(lecture.name),
+        backgroundColor: const Color(0xFF1A3276),
         foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
-          // 상단: 강의명 + 출석 동그라미
+          // 상단: 강의명 + 출석률
           Expanded(
             flex: 1,
             child: Padding(
@@ -24,49 +25,74 @@ class LectureDetailPage extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    '소프트웨어공학',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.grey[300],
+                  Text(
+                    lecture.name,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
                     ),
-                    child: const Center(child: Text('출석')),
+                  ),
+                  SizedBox(
+                    width: 120,
+                    height: 120,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 100, // ⬅️ 원의 크기 명시!
+                          height: 100,
+                          child: CircularProgressIndicator(
+                            value: lecture.attendanceRate / 100,
+                            strokeWidth: 10,
+                            backgroundColor: Colors.grey[300],
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Color(0xFF1A3276),
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${lecture.attendanceRate.toStringAsFixed(1)}%',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
           ),
 
-          // 중간: 과제 카드 리스트
+          // 중간: 과제 카드
           Expanded(
             flex: 2,
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: [
-                buildTaskCard('과제 1'),
-                buildTaskCard('과제 2'),
-                buildTaskCard('과제 3'),
+              children: const [
+                AssignmentCard(title: '과제 1', due: '7월 5일 마감'),
+                AssignmentCard(title: '과제 2', due: '7월 12일 마감'),
+                AssignmentCard(title: '과제 3', due: '7월 19일 마감'),
               ],
             ),
           ),
 
-          // 하단: 강의자료 카드
+          // 하단: 강의자료
           Expanded(
             flex: 1,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Card(
-                color: Colors.grey[200],
+                elevation: 4,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Center(
-                  child: Text('강의자료', style: TextStyle(fontSize: 18)),
+                child: const ListTile(
+                  title: Text('강의자료'),
+                  subtitle: Text('슬라이드, PDF, 영상 등 업로드됨'),
+                  trailing: Icon(Icons.arrow_forward_ios),
                 ),
               ),
             ),
@@ -75,17 +101,26 @@ class LectureDetailPage extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget buildTaskCard(String title) {
+// 🔹 과제 카드 위젯
+class AssignmentCard extends StatelessWidget {
+  final String title;
+  final String due;
+  const AssignmentCard({required this.title, required this.due, super.key});
+
+  @override
+  Widget build(BuildContext context) {
     return Card(
+      elevation: 3,
       margin: const EdgeInsets.symmetric(vertical: 8),
-      color: smBlue,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
-        title: Text(title, style: const TextStyle(color: Colors.white)),
-        trailing: const Icon(Icons.assignment, color: Colors.white),
+        title: Text(title),
+        subtitle: Text(due),
+        trailing: const Icon(Icons.assignment),
         onTap: () {
-          // 과제 상세로 이동 예정
+          // 과제 상세 페이지로 이동 가능
         },
       ),
     );

@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
+import '../models/lecture.dart';
 
 class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+  const HomePage({super.key}); // const 제거
 
   static const Color smBlue = Color(0xFF1A3276); // 상명대 남색
 
   @override
   Widget build(BuildContext context) {
+    final List<Lecture> dummyLectures = [
+      Lecture(id: '1', name: '자료구조', attendanceRate: 92.0),
+      Lecture(id: '2', name: '운영체제', attendanceRate: 85.5),
+      Lecture(id: '3', name: '알고리즘', attendanceRate: 78.0),
+    ];
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('홈'),
@@ -43,12 +50,12 @@ class HomePage extends StatelessWidget {
 
             // 강의 리스트
             Expanded(
-              child: ListView(
-                children: const [
-                  LectureTile(title: '강의 1'),
-                  LectureTile(title: '강의 2'),
-                  LectureTile(title: '강의 3'),
-                ],
+              child: ListView.builder(
+                itemCount: dummyLectures.length,
+                itemBuilder: (context, index) {
+                  final lecture = dummyLectures[index];
+                  return LectureTile(lecture: lecture);
+                },
               ),
             ),
           ],
@@ -60,8 +67,8 @@ class HomePage extends StatelessWidget {
 
 // 🔹 강의 타일
 class LectureTile extends StatelessWidget {
-  final String title;
-  const LectureTile({required this.title, super.key});
+  final Lecture lecture;
+  const LectureTile({required this.lecture, super.key});
 
   static const Color sangmyungBlue = HomePage.smBlue;
 
@@ -74,11 +81,15 @@ class LectureTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: ListTile(
         title: Text(
-          title,
+          lecture.name,
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
+        ),
+        subtitle: Text(
+          '출석률: ${lecture.attendanceRate.toStringAsFixed(1)}%',
+          style: const TextStyle(color: Colors.white70),
         ),
         trailing: const Icon(
           Icons.arrow_forward_ios,
@@ -86,7 +97,7 @@ class LectureTile extends StatelessWidget {
           size: 18,
         ),
         onTap: () {
-          Navigator.pushNamed(context, '/lecturedetail');
+          Navigator.pushNamed(context, '/lecturedetail', arguments: lecture);
         },
       ),
     );
