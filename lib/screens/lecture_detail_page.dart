@@ -6,8 +6,14 @@ class LectureDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Lecture lecture =
-        ModalRoute.of(context)!.settings.arguments as Lecture;
+    // ✅ 2) 라우팅 인자 가드
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is! Lecture) {
+      return const Scaffold(
+        body: Center(child: Text('잘못된 파라미터입니다. (Lecture 필요)')),
+      );
+    }
+    final Lecture lecture = args;
 
     return Scaffold(
       appBar: AppBar(
@@ -21,13 +27,14 @@ class LectureDetailPage extends StatelessWidget {
           Expanded(
             flex: 1,
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16), // ✅ const
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     lecture.name,
                     style: const TextStyle(
+                      // ✅ const
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                     ),
@@ -38,21 +45,17 @@ class LectureDetailPage extends StatelessWidget {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        SizedBox(
-                          width: 100, // ⬅️ 원의 크기 명시!
+                        const SizedBox(
+                          // ✅ const
+                          width: 100, // 원 크기
                           height: 100,
-                          child: CircularProgressIndicator(
-                            value: lecture.attendanceRate / 100,
-                            strokeWidth: 10,
-                            backgroundColor: Colors.grey[300],
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                              Color(0xFF1A3276),
-                            ),
-                          ),
+                          // 진행 링은 아래 _AttendanceCircle로 분리(리빌드 최소화 용이)
+                          child: _AttendanceCircle(),
                         ),
                         Text(
                           '${lecture.attendanceRate.toStringAsFixed(1)}%',
                           style: const TextStyle(
+                            // ✅ 1번 제외(검정 유지)
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             color: Colors.black,
@@ -70,8 +73,9 @@ class LectureDetailPage extends StatelessWidget {
           Expanded(
             flex: 2,
             child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16), // ✅ const
               children: const [
+                // ✅ const
                 AssignmentCard(title: '과제 1', due: '7월 5일 마감'),
                 AssignmentCard(title: '과제 2', due: '7월 12일 마감'),
                 AssignmentCard(title: '과제 3', due: '7월 19일 마감'),
@@ -83,13 +87,14 @@ class LectureDetailPage extends StatelessWidget {
           Expanded(
             flex: 1,
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16), // ✅ const
               child: Card(
                 elevation: 4,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const ListTile(
+                  // ✅ const
                   title: Text('강의자료'),
                   subtitle: Text('슬라이드, PDF, 영상 등 업로드됨'),
                   trailing: Icon(Icons.arrow_forward_ios),
@@ -99,6 +104,24 @@ class LectureDetailPage extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// 진행 링만 분리(가독성/재사용성↑)
+class _AttendanceCircle extends StatelessWidget {
+  const _AttendanceCircle({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final Lecture lecture =
+        ModalRoute.of(context)!.settings.arguments as Lecture;
+
+    return CircularProgressIndicator(
+      value: lecture.attendanceRate / 100,
+      strokeWidth: 10,
+      backgroundColor: Colors.grey[300],
+      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1A3276)),
     );
   }
 }
@@ -113,12 +136,12 @@ class AssignmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 3,
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 8), // ✅ const
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         title: Text(title),
         subtitle: Text(due),
-        trailing: const Icon(Icons.assignment),
+        trailing: const Icon(Icons.assignment), // ✅ const
         onTap: () {
           // 과제 상세 페이지로 이동 가능
         },

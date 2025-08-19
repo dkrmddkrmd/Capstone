@@ -7,59 +7,104 @@ class DemonstratePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('시위 정보'),
-        automaticallyImplyLeading: false,
-        backgroundColor: smBlue,
-        foregroundColor: Colors.white,
-        elevation: 1,
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('교통 & 시위 정보'),
+          automaticallyImplyLeading: false,
+          backgroundColor: smBlue,
+          foregroundColor: Colors.white,
+          elevation: 1,
+          bottom: const TabBar(
+            indicatorColor: Colors.white,
+            tabs: [
+              Tab(icon: Icon(Icons.directions_bus), text: '교통 정보'),
+              Tab(icon: Icon(Icons.event), text: '시위 정보'),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          children: [
+            _TransitTab(), // 교통 정보 탭
+            _ProtestTab(), // 시위 정보 탭
+          ],
+        ),
       ),
-      body: Column(
-        children: [
-          // 🔹 버스 노선도 리스트 (상단 절반)
-          Expanded(
-            flex: 1,
-            child: ListView(
-              padding: const EdgeInsets.all(16),
+    );
+  }
+}
+
+/// 교통 정보 탭 (버스/지하철/셔틀 등)
+class _TransitTab extends StatelessWidget {
+  const _TransitTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final routes = const <String>['1호선 노선도', '2호선 노선도', '셔틀버스 노선도'];
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        // TODO: 실제 데이터/이미지/링크 갱신
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+      },
+      child: routes.isEmpty
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               children: const [
-                BusRouteTile(title: '1호선 노선도'),
-                BusRouteTile(title: '2호선 노선도'),
-                BusRouteTile(title: '셔틀버스 노선도'),
+                SizedBox(height: 120),
+                _EmptyState(icon: Icons.directions_bus, text: '표시할 노선도가 없습니다.'),
               ],
+            )
+          : ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              itemCount: routes.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (_, i) => BusRouteTile(title: routes[i]),
             ),
-          ),
+    );
+  }
+}
 
-          // 🔸 중앙 구분선
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Divider(color: Colors.grey[400], thickness: 0.8, height: 1),
-          ),
+/// 시위 정보 탭 (달력/리스트 등으로 확장 예정)
+class _ProtestTab extends StatelessWidget {
+  const _ProtestTab({super.key});
 
-          // 🔹 시위 달력 영역 (하단 절반)
-          Expanded(
-            flex: 1,
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              alignment: Alignment.center,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey.shade400, width: 1),
-                ),
-                width: double.infinity,
-                height: double.infinity,
-                alignment: Alignment.center,
-                child: const Text(
-                  '시위 달력',
-                  style: TextStyle(fontSize: 18, color: Colors.black54),
-                ),
-              ),
-            ),
-          ),
-        ],
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.grey[200],
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey.shade400, width: 1),
+        ),
+        alignment: Alignment.center,
+        child: const Text(
+          '시위 달력 (준비 중)',
+          style: TextStyle(fontSize: 18, color: Colors.black54),
+        ),
       ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _EmptyState({required this.icon, required this.text, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(icon, size: 56, color: Colors.black38),
+        const SizedBox(height: 12),
+        Text(text, style: const TextStyle(fontSize: 16, color: Colors.black54)),
+      ],
     );
   }
 }
@@ -70,11 +115,10 @@ class BusRouteTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Material(
       color: smBlue,
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias, // 리플이 둥근 모서리 따라가게
       child: ListTile(
         title: Text(
           title,
@@ -82,13 +126,20 @@ class BusRouteTile extends StatelessWidget {
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-        trailing: const Icon(Icons.directions_bus, color: Colors.white),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          color: Colors.white,
+          size: 16,
+        ),
         onTap: () {
-          ScaffoldMessenger.of(context).clearSnackBars();
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('준비 중입니다')));
+          // TODO: 노선도 상세(이미지/웹뷰/링크)로 이동
+          // Navigator.pushNamed(context, '/routeDetail', arguments: routeId);
+          ScaffoldMessenger.of(context)
+            ..clearSnackBars()
+            ..showSnackBar(const SnackBar(content: Text('준비 중입니다')));
         },
       ),
     );

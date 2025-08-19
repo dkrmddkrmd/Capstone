@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:myproject/main_navigation_page.dart';
-import 'screens/login_page.dart';
-import 'screens/home_page.dart';
-import 'screens/lecture_detail_page.dart';
-import 'screens/demonstrate_page.dart';
-import 'screens/department_notice_page.dart';
-import 'screens/settings_page.dart';
+import 'package:myproject/screens/login_page.dart';
+import 'package:myproject/screens/lecture_detail_page.dart';
 
-void main() => runApp(MyProject());
+void main() => runApp(const MyProject());
 
 class MyProject extends StatelessWidget {
   const MyProject({super.key});
@@ -16,21 +12,17 @@ class MyProject extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: "상명대 앱",
+      title: '상명대 앱',
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: Color(0xFF1A3276)),
-        scaffoldBackgroundColor: Colors.white, // 흰 배경
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1A3276)),
+        scaffoldBackgroundColor: Colors.white,
       ),
       initialRoute: '/login',
       routes: {
-        '/login': (context) => const LoginPage(),
-        '/main': (context) => const MainNavigationPage(),
-        '/home': (context) => const HomePage(),
-        '/lecturedetail': (context) => const LectureDetailPage(),
-        '/demoninfo': (context) => const DemonstratePage(),
-        '/notices': (context) => const DepartmentNoticePage(),
-        '/settings': (context) => const SettingsPage(),
+        '/login': (_) => const LoginPage(),
+        '/main': (_) => const MainNavigationPage(),
+        '/lecturedetail': (_) => const LectureDetailPage(),
       },
     );
   }
