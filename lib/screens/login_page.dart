@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/secure_storage.dart'; // ✅ 자격 저장용
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -10,13 +11,15 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   static const Color smBlue = Color(0xFF1A3276); // 상명대 남색
 
-  // ③ 폼 키 & 컨트롤러
+  // 폼 키 & 컨트롤러
   final _formKey = GlobalKey<FormState>();
   final _idController = TextEditingController();
   final _pwController = TextEditingController();
 
-  // ④ 비밀번호 필드 포커스
+  // 비밀번호 필드 포커스
   final FocusNode _pwFocus = FocusNode();
+
+  bool _isBusy = false; // ✅ 로딩 상태
 
   @override
   void dispose() {
@@ -26,12 +29,33 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _submit() {
-    // ③ 유효성 검사 통과 시에만 진행
+  Future<void> _submit() async {
     if (_formKey.currentState?.validate() != true) return;
 
-    // TODO: 실제 로그인 API 연동(내일)
-    Navigator.pushReplacementNamed(context, '/main');
+    setState(() => _isBusy = true);
+    try {
+      final id = _idController.text.trim();
+      final pw = _pwController.text;
+
+      // TODO: 실제 로그인 API 검증 로직이 들어갈 자리 (성공 시에만 아래 저장 실행)
+      // await AuthService.login(id, pw);
+
+      // ✅ 자격 저장 (백그라운드 동기화 & 홈 진입 시 필요)
+      await SecureStore.saveCreds(id, pw);
+
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/main');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('로그인 실패: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
   }
 
   @override
@@ -44,7 +68,7 @@ class _LoginPageState extends State<LoginPage> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: Form(
-              key: _formKey, // ③ Form 추가
+              key: _formKey,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -58,7 +82,7 @@ class _LoginPageState extends State<LoginPage> {
                   // 아이디 입력
                   TextFormField(
                     controller: _idController,
-                    textInputAction: TextInputAction.next, // ②: "다음"
+                    textInputAction: TextInputAction.next,
                     style: const TextStyle(color: smBlue),
                     decoration: InputDecoration(
                       hintText: '아이디',
@@ -68,20 +92,19 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    // ④: 아이디 제출 시 비번으로 포커스
                     onFieldSubmitted: (_) => _pwFocus.requestFocus(),
-                    // ③: 간단 validator
                     validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? '아이디를 입력해 주세요' : null,
+                    (v == null || v.trim().isEmpty) ? '아이디를 입력해 주세요' : null,
+                    enabled: !_isBusy,
                   ),
                   const SizedBox(height: 16),
 
                   // 비밀번호 입력
                   TextFormField(
                     controller: _pwController,
-                    focusNode: _pwFocus, // ④: 포커스 대상
+                    focusNode: _pwFocus,
                     obscureText: true,
-                    textInputAction: TextInputAction.done, // ②: "완료"
+                    textInputAction: TextInputAction.done,
                     style: const TextStyle(color: smBlue),
                     decoration: InputDecoration(
                       hintText: '비밀번호',
@@ -91,19 +114,18 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    // ④: 완료 → 제출
                     onFieldSubmitted: (_) => _submit(),
-                    // ③: 간단 validator
                     validator: (v) =>
-                        (v == null || v.isEmpty) ? '비밀번호를 입력해 주세요' : null,
+                    (v == null || v.isEmpty) ? '비밀번호를 입력해 주세요' : null,
+                    enabled: !_isBusy,
                   ),
                   const SizedBox(height: 24),
 
-                  // 로그인 버튼 (원래 스타일 유지)
+                  // 로그인 버튼
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _submit,
+                      onPressed: _isBusy ? null : _submit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: smBlue,
@@ -112,7 +134,13 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
-                      child: const Text(
+                      child: _isBusy
+                          ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                          : const Text(
                         '로그인',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,

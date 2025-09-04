@@ -17,7 +17,7 @@ class LectureDetailPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(lecture.name),
+        title: Text(lecture.title),
         backgroundColor: const Color(0xFF1A3276),
         foregroundColor: Colors.white,
       ),
@@ -32,7 +32,7 @@ class LectureDetailPage extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    lecture.name,
+                    lecture.title,
                     style: const TextStyle(
                       // ✅ const
                       fontSize: 22,
@@ -53,7 +53,8 @@ class LectureDetailPage extends StatelessWidget {
                           child: _AttendanceCircle(),
                         ),
                         Text(
-                          '${lecture.attendanceRate.toStringAsFixed(1)}%',
+                          // '${lecture.attendanceRate.toStringAsFixed(1)}%',
+                          '50%',
                           style: const TextStyle(
                             // ✅ 1번 제외(검정 유지)
                             fontSize: 16,
@@ -118,7 +119,8 @@ class _AttendanceCircle extends StatelessWidget {
         ModalRoute.of(context)!.settings.arguments as Lecture;
 
     return CircularProgressIndicator(
-      value: lecture.attendanceRate / 100,
+      // value: lecture.attendanceRate / 100,
+      value: 50,
       strokeWidth: 10,
       backgroundColor: Colors.grey[300],
       valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1A3276)),

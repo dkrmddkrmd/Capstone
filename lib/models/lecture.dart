@@ -1,15 +1,42 @@
+// models/lecture.dart
+import 'assignment.dart';
+
 class Lecture {
-  final String id;
-  final String name;
-  final double attendanceRate;
+  final int? localId;           // SQLite PK (자동 생성)
+  final String title;
+  final String professor;
+  final String link;            // 백엔드의 고유 링크 → UNIQUE 키로 사용
+  final List<Assignment> assignments;
 
-  Lecture({required this.id, required this.name, required this.attendanceRate});
+  Lecture({
+    this.localId,
+    required this.title,
+    required this.professor,
+    required this.link,
+    required this.assignments,
+  });
 
-  factory Lecture.fromJson(Map<String, dynamic> json) {
-    return Lecture(
-      id: json['id'],
-      name: json['name'],
-      attendanceRate: json['attendanceRate'].toDouble(),
-    );
-  }
+  factory Lecture.fromJson(Map<String, dynamic> json) => Lecture(
+    title: json['title']?.toString() ?? '',
+    professor: json['professor']?.toString() ?? '',
+    link: json['link']?.toString() ?? '',
+    assignments: (json['assignments'] as List<dynamic>? ?? [])
+        .map((a) => Assignment.fromJson(a as Map<String, dynamic>))
+        .toList(),
+  );
+
+  Map<String, dynamic> toMap() => {
+    'title': title,
+    'professor': professor,
+    'link': link,
+  };
+
+  factory Lecture.fromMap(Map<String, dynamic> m, {List<Assignment>? asg}) =>
+      Lecture(
+        localId: m['id'] as int?,
+        title: m['title'] as String,
+        professor: m['professor'] as String,
+        link: m['link'] as String,
+        assignments: asg ?? const [],
+      );
 }
