@@ -37,7 +37,7 @@ class _LoginPageState extends State<LoginPage> {
       final id = _idController.text.trim();
       final pw = _pwController.text;
 
-      // TODO: 실제 로그인 API 검증 로직이 들어갈 자리 (성공 시에만 아래 저장 실행)
+      // TODO: 실제 로그인 API 검증 로직
       // await AuthService.login(id, pw);
 
       // ✅ 자격 저장 (백그라운드 동기화 & 홈 진입 시 필요)
@@ -145,6 +145,31 @@ class _LoginPageState extends State<LoginPage> {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ✅ 등록하기 버튼 (구분감 있게 Outlined)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _isBusy
+                          ? null
+                          : () => Navigator.pushNamed(context, '/register'),
+                      icon: const Icon(Icons.app_registration),
+                      label: const Text(
+                        '등록하기',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: smBlue),
+                        foregroundColor: smBlue,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
                         ),
                       ),
                     ),
