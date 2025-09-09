@@ -9,17 +9,28 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  static const Color smBlue = Color(0xFF1A3276); // 상명대 남색
+  static const Color smBlue = Color(0xFF1A3276);
 
-  // 폼 키 & 컨트롤러
   final _formKey = GlobalKey<FormState>();
   final _idController = TextEditingController();
   final _pwController = TextEditingController();
-
-  // 비밀번호 필드 포커스
   final FocusNode _pwFocus = FocusNode();
 
-  bool _isBusy = false; // ✅ 로딩 상태
+  bool _isBusy = false;
+  bool _hasRegisteredId = false; // ✅ 등록 여부 상태
+
+  @override
+  void initState() {
+    super.initState();
+    _checkRegisteredId();
+  }
+
+  Future<void> _checkRegisteredId() async {
+    final creds = await SecureStore.getCreds(); // 저장된 자격 조회
+    if (creds != null && creds['id']?.isNotEmpty == true) {
+      setState(() => _hasRegisteredId = true);
+    }
+  }
 
   @override
   void dispose() {
@@ -37,10 +48,6 @@ class _LoginPageState extends State<LoginPage> {
       final id = _idController.text.trim();
       final pw = _pwController.text;
 
-      // TODO: 실제 로그인 API 검증 로직
-      // await AuthService.login(id, pw);
-
-      // ✅ 자격 저장 (백그라운드 동기화 & 홈 진입 시 필요)
       await SecureStore.saveCreds(id, pw);
 
       if (!mounted) return;
@@ -61,7 +68,6 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      // 빈 공간 탭 → 키보드 닫기
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         body: Center(
@@ -72,7 +78,6 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // 로고 이미지
                   const CircleAvatar(
                     radius: 100,
                     backgroundImage: AssetImage('assets/sangmyung.jpg'),
@@ -152,17 +157,22 @@ class _LoginPageState extends State<LoginPage> {
 
                   const SizedBox(height: 12),
 
-                  // ✅ 등록하기 버튼 (구분감 있게 Outlined)
+                  // ✅ 등록 여부에 따라 버튼 분기
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: _isBusy
                           ? null
-                          : () => Navigator.pushNamed(context, '/register'),
-                      icon: const Icon(Icons.app_registration),
-                      label: const Text(
-                        '등록하기',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                          : () => Navigator.pushNamed(
+                        context,
+                        _hasRegisteredId ? '/change_password' : '/register',
+                      ),
+                      icon: Icon(
+                        _hasRegisteredId ? Icons.lock_reset : Icons.app_registration,
+                      ),
+                      label: Text(
+                        _hasRegisteredId ? '비밀번호 변경하기' : '등록하기',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),

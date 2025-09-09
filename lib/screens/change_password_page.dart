@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import '../services/db_service.dart';
-import '../services/ecampus_api.dart';
+import '../services/secure_storage.dart';
 
-class RegisterPage extends StatefulWidget {
-  const RegisterPage({super.key});
+class UpdatePage extends StatefulWidget {
+  const UpdatePage({super.key});
 
   @override
-  State<RegisterPage> createState() => _RegisterPageState();
+  State<UpdatePage> createState() => _UpdatePageState();
 }
 
-class _RegisterPageState extends State<RegisterPage> {
+class _UpdatePageState extends State<UpdatePage> {
   static const Color smBlue = Color(0xFF1A3276);
-  static const bool kDebugAlerts = true; // 🔧 디버그 Alert 온/오프 스위치
 
   final _formKey = GlobalKey<FormState>();
   final _idC = TextEditingController();
@@ -22,105 +21,76 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _obscurePw = true;
 
   @override
+  void initState() {
+    super.initState();
+    _loadSavedId();
+  }
+
+  Future<void> _loadSavedId() async {
+    final creds = await SecureStore.getCreds();
+    final savedId = creds['id'];
+    if (savedId != null && savedId.isNotEmpty) {
+      setState(() {
+        _idC.text = savedId;
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _idC.dispose();
     _pwC.dispose();
     super.dispose();
   }
 
-  Future<void> _register() async {
+  Future<void> _update() async {
     if (_formKey.currentState?.validate() != true) return;
 
     setState(() => _isBusy = true);
     try {
       final userId = _idC.text.trim();
-      final userPw = _pwC.text;
+      final newPw = _pwC.text;
 
-      // 1) 서버로 자격 검증
-      final ok = await EcampusApi.verifyCredentials(userId: userId, userPw: userPw);
-
-      if (!ok) {
+      // 0) 유저 존재 여부 확인
+      final exists = await DBService().hasUser(userId);
+      if (!exists) {
         if (!mounted) return;
-        _showDebug('검증 실패', 'verifyCredentials=false');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('아이디와 비밀번호를 확인해주세요'),
+            content: Text('존재하지 않는 아이디입니다. 먼저 등록해 주세요.'),
             backgroundColor: Colors.red,
           ),
-        );
-        return; // 저장하지 않음
-      }
-
-      // 1-1) 프로필 조회
-      String? rawName;
-      String? parsedName;
-      String? profileImgUrl;
-      String? major;
-      try {
-        final prof = await EcampusApi.fetchProfile(userId: userId, userPw: userPw);
-        if (prof != null) {
-          rawName = (prof['userName'] as String?)?.trim();
-          parsedName = _parseNameOnly(rawName); // "홍길동님 안녕하세요!" -> "홍길동"
-          profileImgUrl = (prof['profileImg'] as String?)?.trim();
-          major = (prof['major'] as String?)?.trim();
-
-          _showDebug(
-            '프로필 응답 확인',
-            [
-              'raw.userName: ${rawName ?? "(null)"}',
-              'parsed.userName: ${parsedName ?? "(null)"}',
-              'major: ${major ?? "(null)"}',
-              'profileImg: ${profileImgUrl ?? "(null)"}',
-            ].join('\n'),
-          );
-        } else {
-          _showDebug('프로필 응답 없음', 'fetchProfile returned null');
-        }
-      } catch (e) {
-        _showDebug('프로필 조회 예외', e.toString());
-      }
-
-      // 2) 로컬 DB 저장
-      try {
-        await DBService().createUser(
-          userId,
-          userPw,
-          userName: parsedName,
-          profileImg: profileImgUrl,
-          major: major,
-        );
-
-        // 2-1) 저장 결과 재확인 (DB에서 다시 읽어서 Alert)
-        final row = await DBService().getUserByUserId(userId);
-        _showDebug(
-          'DB 저장 결과',
-          row == null
-              ? 'getUserByUserId("$userId") -> null'
-              : [
-            'userId: ${row['userId']}',
-            'userName: ${row['userName']}',
-            'major: ${row['major']}',
-            'profileImg: ${row['profileImg']}',
-          ].join('\n'),
-        );
-      } on DatabaseException catch (e) {
-        String msg = '등록 실패';
-        if (e.isUniqueConstraintError()) msg = '이미 존재하는 아이디입니다.';
-        _showDebug('DB 예외', '${e.toString()}\n-> $msg');
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: Colors.red),
         );
         return;
       }
 
+      // 1) 로컬 DB 비밀번호 업데이트
+      final changed = await DBService().updateUserPassword(userId, newPw);
+      if (changed == 0) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('비밀번호 변경에 실패했습니다.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // 2) 보안 저장소 자격 갱신
+      await SecureStore.saveCreds(userId, newPw);
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('등록 완료! 로그인 페이지로 돌아갑니다.')),
+        const SnackBar(content: Text('비밀번호가 변경되었습니다.')),
       );
       Navigator.pop(context);
+    } on DatabaseException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('DB 오류: ${e.toString()}'), backgroundColor: Colors.red),
+      );
     } catch (e) {
-      _showDebug('알 수 없는 예외', e.toString());
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('오류: $e'), backgroundColor: Colors.red),
@@ -130,46 +100,13 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
-  /// "홍길동님 안녕하세요!" -> "홍길동"
-  String _parseNameOnly(String? raw) {
-    if (raw == null || raw.isEmpty) return '';
-    final idx = raw.indexOf('님');
-    if (idx > 0) {
-      return raw.substring(0, idx).trim();
-    }
-    final sp = raw.indexOf(' ');
-    if (sp > 0) {
-      return raw.substring(0, sp).trim();
-    }
-    return raw.trim();
-  }
-
-  void _showDebug(String title, String message) {
-    if (!kDebugAlerts) return;
-    if (!mounted) return;
-    // ignore: use_build_context_synchronously
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: SingleChildScrollView(child: Text(message)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('확인'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('등록하기'),
+          title: const Text('등록하기'), // 그대로 유지
           backgroundColor: smBlue,
           foregroundColor: Colors.white,
         ),
@@ -197,7 +134,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   controller: _pwC,
                   obscureText: _obscurePw,
                   decoration: InputDecoration(
-                    hintText: '비밀번호',
+                    hintText: '변경된 비밀번호',
                     prefixIcon: const Icon(Icons.key, color: smBlue),
                     suffixIcon: IconButton(
                       onPressed: _isBusy
@@ -213,14 +150,14 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
                   validator: (v) =>
-                  (v == null || v.isEmpty) ? '비밀번호를 입력해 주세요' : null,
+                  (v == null || v.isEmpty) ? '변경된 비밀번호를 입력해 주세요' : null,
                   enabled: !_isBusy,
                 ),
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _isBusy ? null : _register,
+                    onPressed: _isBusy ? null : _update,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: smBlue,
                       foregroundColor: Colors.white,
@@ -236,7 +173,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                         : const Text(
-                      '등록하기',
+                      '변경하기',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,

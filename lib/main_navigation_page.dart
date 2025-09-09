@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:myproject/screens/calendar_page.dart';
 import 'screens/home_page.dart';
 import 'screens/department_notice_page.dart';
 import 'screens/demonstrate_page.dart';
@@ -22,7 +23,8 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
   final List<Widget> _pages = const [
     HomePage(),
     DepartmentNoticePage(),
-    DemonstratePage(),
+    // DemonstratePage(), 기존 시위정보 띄우기
+    CalendarPage(),
     ProfilePage(),
   ];
 
@@ -77,10 +79,15 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
             selectedIcon: Icon(Icons.campaign),
             label: '전공 공지',
           ),
+          // NavigationDestination(
+          //   icon: Icon(Icons.flag_outlined),
+          //   selectedIcon: Icon(Icons.flag),
+          //   label: '시위 정보',
+          // ),
           NavigationDestination(
-            icon: Icon(Icons.flag_outlined),
-            selectedIcon: Icon(Icons.flag),
-            label: '시위 정보',
+            icon: Icon(Icons.calendar_today_outlined),
+            selectedIcon: Icon(Icons.calendar_today),
+            label: '캘린더',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),

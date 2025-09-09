@@ -16,7 +16,7 @@ class DBService {
     final base = await getDatabasesPath();
     _db = await openDatabase(
       join(base, 'ecampus_app.db'),
-      version: 3, // ✅ v3: User.userName, User.profileImg 추가
+      version: 4, // ✅ v4: User.userName, User.profileImg, User.major 추가
       onCreate: (db, v) async {
         // --- lectures ---
         await db.execute('''
@@ -27,6 +27,9 @@ class DBService {
             link TEXT NOT NULL UNIQUE
           );
         ''');
+
+        // (옵션) 쿼리 성능 향상을 위한 인덱스
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_lectures_link ON lectures(link);');
 
         // --- assignments ---
         await db.execute('''
@@ -40,6 +43,8 @@ class DBService {
             FOREIGN KEY(lecture_id) REFERENCES lectures(id) ON DELETE CASCADE
           );
         ''');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_assignments_lecture ON assignments(lecture_id);');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_assignments_due ON assignments(due);');
 
         // --- meta ---
         await db.execute('''
@@ -49,7 +54,7 @@ class DBService {
           );
         ''');
 
-        // --- ✅ v3: User (최신 스키마로 생성)
+        // --- ✅ User (최신 스키마로 생성)
         await _createUserTable(db);
       },
       onUpgrade: (db, oldV, newV) async {
@@ -61,6 +66,15 @@ class DBService {
         if (oldV < 3) {
           await _addUserOptionalColumns(db);
         }
+        // v3 -> v4: major 컬럼 추가
+        if (oldV < 4) {
+          try { await db.execute('ALTER TABLE User ADD COLUMN major TEXT;') ;} catch (_) {}
+        }
+
+        // (안전) 인덱스 보장
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_lectures_link ON lectures(link);');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_assignments_lecture ON assignments(lecture_id);');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_assignments_due ON assignments(due);');
       },
     );
     await _db!.execute('PRAGMA foreign_keys=ON');
@@ -79,33 +93,30 @@ class DBService {
         userPw TEXT NOT NULL,
         createdAt TEXT NOT NULL,
         userName TEXT,
-        profileImg TEXT
+        profileImg TEXT,
+        major TEXT
       );
     ''');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_user_userId ON User(userId);');
   }
 
   static Future<void> _addUserOptionalColumns(Database db) async {
-    // 이미 있으면 무시되도록 try/catch
-    try {
-      await db.execute('ALTER TABLE User ADD COLUMN userName TEXT;');
-    } catch (_) {}
-    try {
-      await db.execute('ALTER TABLE User ADD COLUMN profileImg TEXT;');
-    } catch (_) {}
+    try { await db.execute('ALTER TABLE User ADD COLUMN userName TEXT;'); } catch (_) {}
+    try { await db.execute('ALTER TABLE User ADD COLUMN profileImg TEXT;'); } catch (_) {}
+    // v4에서 major 추가(여기선 제외) — onUpgrade에서 처리
   }
 
-  /// 사용자 등록 (중복 userId면 예외 발생: UNIQUE 제약)
   Future<int> createUser(
       String userId,
       String userPw, {
         DateTime? createdAt,
         String? userName,
         String? profileImg,
+        String? major, // ✅ 추가
       }) async {
     final d = await db;
     final nowIso = (createdAt ?? DateTime.now()).toIso8601String();
-    return await d.insert(
+    return d.insert(
       'User',
       {
         'userId': userId.trim(),
@@ -113,12 +124,12 @@ class DBService {
         'createdAt': nowIso,
         'userName': userName,
         'profileImg': profileImg,
+        'major': major, // ✅ 저장
       },
-      conflictAlgorithm: ConflictAlgorithm.abort, // 중복이면 에러
+      conflictAlgorithm: ConflictAlgorithm.abort,
     );
   }
 
-  /// userId로 1명 조회 (Map 반환 — 필요 시 AppUser.fromMap 사용)
   Future<Map<String, dynamic>?> getUserByUserId(String userId) async {
     final d = await db;
     final rows = await d.query(
@@ -131,18 +142,19 @@ class DBService {
     return rows.first;
   }
 
-  /// (선택) 프로필 업데이트
   Future<int> updateUserProfile({
     required String userId,
     String? userName,
     String? profileImg,
+    String? major, // ✅ 추가
   }) async {
     final d = await db;
     final data = <String, Object?>{};
     if (userName != null) data['userName'] = userName;
     if (profileImg != null) data['profileImg'] = profileImg;
+    if (major != null) data['major'] = major;
     if (data.isEmpty) return 0;
-    return await d.update(
+    return d.update(
       'User',
       data,
       where: 'userId=?',
@@ -151,15 +163,59 @@ class DBService {
     );
   }
 
-  /// 로그인 검증용 (간단 비교)
   Future<bool> validateUser(String userId, String userPw) async {
     final row = await getUserByUserId(userId);
     if (row == null) return false;
     return row['userPw'] == userPw;
   }
 
+  /// 비밀번호 변경
+  Future<int> updateUserPassword(String userId, String newPw) async {
+    final d = await db;
+    return d.update(
+      'User',
+      {'userPw': newPw},
+      where: 'userId = ?',
+      whereArgs: [userId.trim()],
+      conflictAlgorithm: ConflictAlgorithm.abort,
+    );
+  }
+
+  /// 해당 userId가 존재하는지 여부
+  Future<bool> hasUser(String userId) async {
+    final d = await db;
+    final cnt = Sqflite.firstIntValue(await d.rawQuery(
+      'SELECT COUNT(*) FROM User WHERE userId = ?',
+      [userId.trim()],
+    ));
+    return (cnt ?? 0) > 0;
+  }
+
+  /// 아무 사용자나 하나 가져와서 userId 반환 (저장된 계정이 하나뿐인 앱 가정 시 편의용)
+  Future<String?> getAnySavedUserId() async {
+    final d = await db;
+    final rs = await d.query(
+      'User',
+      columns: ['userId'],
+      orderBy: 'createdAt DESC',
+      limit: 1,
+    );
+    if (rs.isEmpty) return null;
+    return rs.first['userId'] as String?;
+  }
+
+  /// 사용자 삭제 (로그아웃/재등록 시 사용)
+  Future<int> deleteUserByUserId(String userId) async {
+    final d = await db;
+    return d.delete(
+      'User',
+      where: 'userId = ?',
+      whereArgs: [userId.trim()],
+    );
+  }
+
   // =========================
-  // 기존 강의/과제 메서드
+  // lectures / assignments
   // =========================
 
   Future<int> lecturesCount() async {
@@ -170,12 +226,16 @@ class DBService {
     return c ?? 0;
   }
 
+  /// 기존 메서드 (유지해도 됨)
   Future<void> saveCourses(List<Lecture> arr) async {
     final d = await db;
     await d.transaction((txn) async {
       for (final lec in arr) {
-        await txn.insert('lectures', lec.toMap(),
-            conflictAlgorithm: ConflictAlgorithm.replace);
+        await txn.insert(
+          'lectures',
+          lec.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
 
         final idRow = await txn.query(
           'lectures',
@@ -221,5 +281,134 @@ class DBService {
       ));
     }
     return out;
+  }
+
+  /// 크롤링 결과를 기준으로 동기화
+  Future<void> syncCourses(List<Lecture> crawled) async {
+    final d = await db;
+    await d.transaction((txn) async {
+      // 1) 기존 강좌 맵
+      final existingRows = await txn.query(
+        'lectures',
+        columns: ['id', 'link', 'title', 'professor'],
+      );
+      final Map<String, Map<String, Object?>> existingByLink = {
+        for (final r in existingRows) (r['link'] as String): r
+      };
+
+      // 2) 크롤링 링크 집합
+      final Set<String> crawledLinks = crawled.map((e) => e.link).toSet();
+
+      // 3) 삭제 대상
+      final List<int> deleteIds = [];
+      for (final r in existingRows) {
+        final link = r['link'] as String;
+        if (!crawledLinks.contains(link)) deleteIds.add(r['id'] as int);
+      }
+      if (deleteIds.isNotEmpty) {
+        final placeholders = List.filled(deleteIds.length, '?').join(',');
+        await txn.delete('lectures', where: 'id IN ($placeholders)', whereArgs: deleteIds);
+        // ON DELETE CASCADE 로 assignments 자동 삭제
+      }
+
+      // 4) upsert & 과제 리프레시
+      for (final lec in crawled) {
+        final exist = existingByLink[lec.link];
+
+        int lectureId;
+        if (exist == null) {
+          lectureId = await txn.insert(
+            'lectures',
+            lec.toMap(),
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        } else {
+          lectureId = exist['id'] as int;
+          await txn.update(
+            'lectures',
+            {'title': lec.title, 'professor': lec.professor, 'link': lec.link},
+            where: 'id=?',
+            whereArgs: [lectureId],
+            conflictAlgorithm: ConflictAlgorithm.abort,
+          );
+          await txn.delete('assignments', where: 'lecture_id=?', whereArgs: [lectureId]);
+        }
+
+        for (final a in lec.assignments) {
+          await txn.insert(
+            'assignments',
+            a.toMap(lectureId),
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      }
+
+      await txn.insert(
+        'meta',
+        {'key': 'last_sync', 'value': DateTime.now().toIso8601String()},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    });
+  }
+
+  /// 특정 강의 과제 목록
+  Future<List<Assignment>> getAssignmentsByLectureId(int? lectureId) async {
+    if (lectureId == null) return [];
+    final d = await db;
+    final rows = await d.query(
+      'assignments',
+      where: 'lecture_id=?',
+      whereArgs: [lectureId],
+      orderBy: 'due ASC',
+    );
+    return rows.map(Assignment.fromMap).toList();
+  }
+
+  /// (옵션) 링크로 lecture_id 찾기
+  Future<int?> getLectureIdByLink(String link) async {
+    final d = await db;
+    final rs = await d.query(
+      'lectures',
+      columns: ['id'],
+      where: 'link=?',
+      whereArgs: [link],
+      limit: 1,
+    );
+    if (rs.isEmpty) return null;
+    return rs.first['id'] as int;
+  }
+
+  // -------------------------
+  // assignments CRUD
+  // -------------------------
+
+  Future<int> addAssignment(int lectureId, Assignment a) async {
+    final d = await db;
+    return d.insert(
+      'assignments',
+      a.toMap(lectureId),
+      conflictAlgorithm: ConflictAlgorithm.replace, // (lecture_id, name, due) UNIQUE
+    );
+  }
+
+  Future<int> updateAssignment(Assignment a) async {
+    if (a.id == null) return 0;
+    final d = await db;
+    return d.update(
+      'assignments',
+      {
+        'name': a.name,
+        'due': a.due,
+        'status': a.status,
+      },
+      where: 'id=?',
+      whereArgs: [a.id],
+      conflictAlgorithm: ConflictAlgorithm.abort,
+    );
+  }
+
+  Future<int> deleteAssignment(int id) async {
+    final d = await db;
+    return d.delete('assignments', where: 'id=?', whereArgs: [id]);
   }
 }

@@ -1,12 +1,85 @@
 import 'package:flutter/material.dart';
+import '../services/db_service.dart';
+import '../services/secure_storage.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
   static const Color sangmyungBlue = Color(0xFF1A3276);
+
+  bool _isLoading = true;
+
+  String? _userId;
+  String? _userName;
+  String? _major;
+  String? _profileImg; // URL
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserFromDB();
+  }
+
+  Future<void> _loadUserFromDB() async {
+    try {
+      final uid = await DBService().getAnySavedUserId();
+      if (uid == null) {
+        setState(() {
+          _isLoading = false;
+          _userId = null;
+          _userName = null;
+          _major = null;
+          _profileImg = null;
+        });
+        return;
+      }
+
+      final row = await DBService().getUserByUserId(uid);
+      setState(() {
+        _isLoading = false;
+        _userId = row?['userId'] as String?;
+        _userName = (row?['userName'] as String?)?.trim();
+        _major = (row?['major'] as String?)?.trim();
+        _profileImg = (row?['profileImg'] as String?)?.trim();
+      });
+    } catch (_) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _onLogoutPressed() async {
+    final ok = await _confirmLogout(context);
+    if (ok != true) return;
+
+    // 자격증명 삭제
+    await SecureStore.clearCreds();
+
+    if (!mounted) return;
+    // 로그인 화면으로 이동 (스택 정리)
+    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final titleText = _isLoading
+        ? '로딩 중...'
+        : (_userName?.isNotEmpty == true ? _userName! : '사용자');
+
+    final majorText = _isLoading
+        ? '불러오는 중...'
+        : (_major?.isNotEmpty == true ? _major! : '전공 미등록');
+
+    final idText = _isLoading
+        ? '불러오는 중...'
+        : (_userId?.isNotEmpty == true ? _userId! : '학번 미등록');
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('마이페이지'),
@@ -20,15 +93,18 @@ class ProfilePage extends StatelessWidget {
           // 프로필 헤더
           Column(
             crossAxisAlignment: CrossAxisAlignment.center,
-            children: const [
-              CircleAvatar(radius: 50, child: Icon(Icons.person, size: 50)),
-              SizedBox(height: 12),
+            children: [
+              _ProfileAvatar(imageUrl: _profileImg),
+              const SizedBox(height: 12),
               Text(
-                '사용자',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                titleText,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 4),
-              Text('컴퓨터과학과 · 2025학번', style: TextStyle(color: Colors.black54)),
+              const SizedBox(height: 4),
+              Text(
+                '${majorText}${_userId != null ? ' · $idText' : ''}',
+                style: const TextStyle(color: Colors.black54),
+              ),
             ],
           ),
           const SizedBox(height: 24),
@@ -59,22 +135,22 @@ class ProfilePage extends StatelessWidget {
           const SizedBox(height: 24),
 
           // 계정/앱 설정 섹션
-          _SectionTitle('계정'),
+          const _SectionTitle('계정'),
           _SettingTile(
             leading: const Icon(Icons.badge_outlined),
             title: '학번',
-            trailingText: '2025XXXXX',
+            trailingText: idText,
             onTap: null,
           ),
           _SettingTile(
             leading: const Icon(Icons.school_outlined),
             title: '전공',
-            trailingText: '컴퓨터과학과',
+            trailingText: majorText,
             onTap: null,
           ),
           const SizedBox(height: 8),
 
-          _SectionTitle('앱 설정'),
+          const _SectionTitle('앱 설정'),
           _SettingTile(
             leading: const Icon(Icons.notifications_active_outlined),
             title: '알림 설정',
@@ -118,17 +194,7 @@ class ProfilePage extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () async {
-                final ok = await _confirmLogout(context);
-                if (ok != true) return;
-                // 로그인 화면으로 이동 (스택 정리)
-                // ignore: use_build_context_synchronously
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                  (route) => false,
-                );
-              },
+              onPressed: _onLogoutPressed,
               icon: const Icon(Icons.logout),
               label: const Text('로그아웃'),
               style: ElevatedButton.styleFrom(
@@ -144,6 +210,24 @@ class ProfilePage extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  final String? imageUrl;
+  const _ProfileAvatar({this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    if (imageUrl != null && imageUrl!.isNotEmpty) {
+      return CircleAvatar(
+        radius: 50,
+        backgroundImage: NetworkImage(imageUrl!),
+        onBackgroundImageError: (_, __) {},
+        child: const SizedBox.shrink(),
+      );
+    }
+    return const CircleAvatar(radius: 50, child: Icon(Icons.person, size: 50));
   }
 }
 
@@ -188,9 +272,9 @@ class _SettingTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final Widget right =
         trailing ??
-        (trailingText != null
-            ? Text(trailingText!, style: const TextStyle(color: Colors.black54))
-            : const SizedBox.shrink());
+            (trailingText != null
+                ? Text(trailingText!, style: const TextStyle(color: Colors.black54))
+                : const SizedBox.shrink());
 
     return Material(
       color: Colors.white,

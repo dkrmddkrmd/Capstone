@@ -7,7 +7,7 @@ import '../models/lecture.dart';
 
 class EcampusApi {
   // 로컬/배포 환경에 맞게 수정
-  static const String _baseUrl = 'http://192.168.0.42:8080/api';
+  static const String _baseUrl = 'http://192.168.219.105:8080/api';
 
   static Uri _u(String path) => Uri.parse('$_baseUrl$path');
 
@@ -46,6 +46,31 @@ class EcampusApi {
       return false;
     }
   }
+  static Future<Map<String, dynamic>?> fetchProfile({
+    required String userId,
+    required String userPw,
+  }) async {
+    try {
+      final resp = await _postJson('/crawl/ecampus/profile', {
+        'userId': userId,
+        'userPw': userPw,
+      });
+      if (resp.statusCode != 200) return null;
+
+      final decoded = jsonDecode(resp.body);
+      // 응답이 곧바로 {"userId","userName","major","profileImg","profileImgBase64":null}
+      if (decoded is Map<String, dynamic>) return decoded;
+
+      return null;
+    } on SocketException catch (_) {
+      return null;
+    } on TimeoutException catch (_) {
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
 
   /// 강의 목록 가져오기 (crawler 응답 파싱)
   static Future<List<Lecture>> fetchLectures({
@@ -86,4 +111,5 @@ class EcampusApi {
       throw Exception('Failed to load lecture: ${response.statusCode}');
     }
   }
+
 }

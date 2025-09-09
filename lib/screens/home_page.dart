@@ -4,6 +4,7 @@ import '../models/assignment.dart';
 import '../models/lecture.dart';
 
 // ✅ Repository 기반
+import '../services/db_service.dart';
 import '../services/lecture_repository.dart';
 // ✅ 로그인 자격 보관 확인
 import '../services/secure_storage.dart';
@@ -24,6 +25,8 @@ class _HomePageState extends State<HomePage> {
   List<Lecture> lectures = [];
   bool isLoading = true;
   String? errorMessage;
+  String? currentUserName; // ✅ 사용자 이름 저장
+
 
   @override
   void initState() {
@@ -52,7 +55,54 @@ class _HomePageState extends State<HomePage> {
 
     // 자격이 있으면 평소처럼 로드
     await _loadLecturesPreferLocal();
+    await _loadUserName(); // ✅ 사용자 이름 로드
+
   }
+  Future<void> _loadUserName() async {
+    final db = DBService();
+    final uid = await db.getAnySavedUserId();
+
+    if (uid != null) {
+      final row = await db.getUserByUserId(uid);
+      final dbName = (row?['userName'] as String?)?.trim();
+      setState(() {
+        currentUserName = dbName;
+      });
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('디버그'),
+            content: Text('uid=$uid\nuserName=$dbName'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('확인'),
+              ),
+            ],
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('디버그'),
+            content: const Text('DB에 저장된 User가 없습니다.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('확인'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
 
   /// ✅ DB 우선 로드 (DB가 비면 내부적으로 API→DB 저장 후 DB 반환)
   Future<void> _loadLecturesPreferLocal() async {
@@ -167,13 +217,13 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
-                CircleAvatar(radius: 30, child: Icon(Icons.person, size: 30)),
-                SizedBox(width: 12),
+                const CircleAvatar(radius: 30, child: Icon(Icons.person, size: 30)),
+                const SizedBox(width: 12),
                 Text(
-                  '사용자',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  currentUserName ?? '사용자', // ✅ DB 값 있으면 대체
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -311,6 +361,19 @@ class LectureTile extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
+        // ✅ 교수명 표시
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(
+            lecture.professor.isNotEmpty ? '${lecture.professor} 교수님' : '',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12.5,
+            ),
+          ),
+        ),
         trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
         onTap: () {
           Navigator.pushNamed(context, '/lecturedetail', arguments: lecture);
@@ -319,3 +382,4 @@ class LectureTile extends StatelessWidget {
     );
   }
 }
+

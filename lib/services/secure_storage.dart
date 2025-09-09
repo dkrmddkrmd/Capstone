@@ -1,4 +1,3 @@
-// services/secure_storage.dart
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class SecureStore {
@@ -15,6 +14,15 @@ class SecureStore {
     final id = await _storage.read(key: _kUserId);
     final pw = await _storage.read(key: _kUserPw);
     return (id, pw);
+  }
+
+  static Future<Map<String, String?>> getCreds() async {
+    final id = await _storage.read(key: _kUserId);
+    final pw = await _storage.read(key: _kUserPw);
+    return {
+      'id': id,
+      'pw': pw,
+    };
   }
 
   static Future<bool> hasCreds() async {

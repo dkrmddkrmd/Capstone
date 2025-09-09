@@ -21,7 +21,7 @@ class LectureRepository {
       throw Exception('No credentials saved');
     }
     final remote = await LectureService.fetchLectures(id, pw);
-    await _db.saveCourses(remote);
+    await _db.syncCourses(remote);
     return _db.getAllLecturesWithAssignments();
   }
 
@@ -30,6 +30,6 @@ class LectureRepository {
     final (id, pw) = await SecureStore.readCreds();
     if (id == null || pw == null) return;
     final remote = await LectureService.fetchLectures(id, pw);
-    await _db.saveCourses(remote);
+    await _db.syncCourses(remote);
   }
 }
