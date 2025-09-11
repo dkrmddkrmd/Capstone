@@ -3,6 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import '../models/lecture.dart';
 import '../models/assignment.dart';
+import '../models/video_progress.dart';
 
 class DBService {
   static final DBService _i = DBService._();
@@ -16,7 +17,7 @@ class DBService {
     final base = await getDatabasesPath();
     _db = await openDatabase(
       join(base, 'ecampus_app.db'),
-      version: 4, // ✅ v4: User.userName, User.profileImg, User.major 추가
+      version: 5, // ✅ v5: video_progress 테이블 추가
       onCreate: (db, v) async {
         // --- lectures ---
         await db.execute('''
@@ -28,7 +29,7 @@ class DBService {
           );
         ''');
 
-        // (옵션) 쿼리 성능 향상을 위한 인덱스
+        // 인덱스
         await db.execute('CREATE INDEX IF NOT EXISTS idx_lectures_link ON lectures(link);');
 
         // --- assignments ---
@@ -45,6 +46,24 @@ class DBService {
         ''');
         await db.execute('CREATE INDEX IF NOT EXISTS idx_assignments_lecture ON assignments(lecture_id);');
         await db.execute('CREATE INDEX IF NOT EXISTS idx_assignments_due ON assignments(due);');
+
+        // --- video_progress (신규) ---
+        await db.execute('''
+          CREATE TABLE video_progress(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lecture_id INTEGER NOT NULL,
+            week TEXT,
+            title TEXT,
+            requiredTimeText TEXT,
+            requiredTimeSec INTEGER,
+            totalTimeText TEXT,
+            totalTimeSec INTEGER,
+            progressPercent REAL,
+            UNIQUE(lecture_id, title, week) ON CONFLICT REPLACE,
+            FOREIGN KEY(lecture_id) REFERENCES lectures(id) ON DELETE CASCADE
+          );
+        ''');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_video_progress_lecture ON video_progress(lecture_id);');
 
         // --- meta ---
         await db.execute('''
@@ -68,7 +87,26 @@ class DBService {
         }
         // v3 -> v4: major 컬럼 추가
         if (oldV < 4) {
-          try { await db.execute('ALTER TABLE User ADD COLUMN major TEXT;') ;} catch (_) {}
+          try { await db.execute('ALTER TABLE User ADD COLUMN major TEXT;'); } catch (_) {}
+        }
+        // v4 -> v5: video_progress 테이블 신설
+        if (oldV < 5) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS video_progress(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              lecture_id INTEGER NOT NULL,
+              week TEXT,
+              title TEXT,
+              requiredTimeText TEXT,
+              requiredTimeSec INTEGER,
+              totalTimeText TEXT,
+              totalTimeSec INTEGER,
+              progressPercent REAL,
+              UNIQUE(lecture_id, title, week) ON CONFLICT REPLACE,
+              FOREIGN KEY(lecture_id) REFERENCES lectures(id) ON DELETE CASCADE
+            );
+          ''');
+          await db.execute('CREATE INDEX IF NOT EXISTS idx_video_progress_lecture ON video_progress(lecture_id);');
         }
 
         // (안전) 인덱스 보장
@@ -253,6 +291,11 @@ class DBService {
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
+
+        // (선택) Lecture에 videoProgress 리스트를 나중에 붙일 계획이면 여기서 저장 가능
+        // if (lec.videoProgress != null) {
+        //   await replaceVideoProgressForLecture(lid, lec.videoProgress!);
+        // }
       }
 
       await txn.insert(
@@ -308,7 +351,7 @@ class DBService {
       if (deleteIds.isNotEmpty) {
         final placeholders = List.filled(deleteIds.length, '?').join(',');
         await txn.delete('lectures', where: 'id IN ($placeholders)', whereArgs: deleteIds);
-        // ON DELETE CASCADE 로 assignments 자동 삭제
+        // ON DELETE CASCADE 로 assignments / video_progress 자동 삭제
       }
 
       // 4) upsert & 과제 리프레시
@@ -332,6 +375,7 @@ class DBService {
             conflictAlgorithm: ConflictAlgorithm.abort,
           );
           await txn.delete('assignments', where: 'lecture_id=?', whereArgs: [lectureId]);
+          await txn.delete('video_progress', where: 'lecture_id=?', whereArgs: [lectureId]);
         }
 
         for (final a in lec.assignments) {
@@ -341,6 +385,11 @@ class DBService {
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
+
+        // (선택) 크롤링 단계에서 Lecture에 progress를 담아왔다면 여기서 저장
+        // if (lec.videoProgress != null) {
+        //   await _insertManyVideoProgress(txn, lectureId, lec.videoProgress!);
+        // }
       }
 
       await txn.insert(
@@ -410,5 +459,71 @@ class DBService {
   Future<int> deleteAssignment(int id) async {
     final d = await db;
     return d.delete('assignments', where: 'id=?', whereArgs: [id]);
+  }
+
+  // =========================
+  // video_progress CRUD
+  // =========================
+
+  Future<int> addVideoProgress(int lectureId, VideoProgress vp) async {
+    final d = await db;
+    return d.insert(
+      'video_progress',
+      vp.toMap(lectureId),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> replaceVideoProgressForLecture(int lectureId, List<VideoProgress> rows) async {
+    final d = await db;
+    await d.transaction((txn) async {
+      await txn.delete('video_progress', where: 'lecture_id=?', whereArgs: [lectureId]);
+      for (final r in rows) {
+        await txn.insert(
+          'video_progress',
+          r.toMap(lectureId),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
+  Future<List<VideoProgress>> getVideoProgressByLectureId(int lectureId) async {
+    final d = await db;
+    final rows = await d.query(
+      'video_progress',
+      where: 'lecture_id=?',
+      whereArgs: [lectureId],
+      orderBy: 'id ASC',
+    );
+    return rows.map(VideoProgress.fromMap).toList();
+  }
+
+  Future<int> updateVideoProgress(VideoProgress vp) async {
+    if (vp.id == null) return 0;
+    final d = await db;
+    return d.update(
+      'video_progress',
+      vp.toMap(vp.lectureId),
+      where: 'id=?',
+      whereArgs: [vp.id],
+      conflictAlgorithm: ConflictAlgorithm.abort,
+    );
+  }
+
+  Future<int> deleteVideoProgress(int id) async {
+    final d = await db;
+    return d.delete('video_progress', where: 'id=?', whereArgs: [id]);
+  }
+
+  // 내부 다건 삽입 헬퍼
+  Future<void> _insertManyVideoProgress(Transaction txn, int lectureId, List<VideoProgress> rows) async {
+    for (final r in rows) {
+      await txn.insert(
+        'video_progress',
+        r.toMap(lectureId),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
   }
 }

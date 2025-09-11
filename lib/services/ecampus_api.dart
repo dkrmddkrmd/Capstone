@@ -7,7 +7,9 @@ import '../models/lecture.dart';
 
 class EcampusApi {
   // 로컬/배포 환경에 맞게 수정
-  static const String _baseUrl = 'http://192.168.219.105:8080/api';
+  static const String _baseUrl = 'http://192.168.219.103:8080/api';
+  // static const String _baseUrl = 'http://172.17.100.15:8080/api';
+
 
   static Uri _u(String path) => Uri.parse('$_baseUrl$path');
 

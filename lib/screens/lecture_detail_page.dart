@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+
 import '../models/lecture.dart';
 import '../models/assignment.dart';
+import '../models/video_progress.dart';
+
 import '../services/db_service.dart';
+import '../services/video_progress_service.dart';
+import '../services/progress_calc_service.dart';
+
 import '../widget/assignment_card.dart';
 
 // ✅ 상태는 두 가지만 유지
@@ -16,7 +22,10 @@ class LectureDetailPage extends StatefulWidget {
 
 class _LectureDetailPageState extends State<LectureDetailPage> {
   late Lecture lecture;
+
   late Future<List<Assignment>> _futureAssignments;
+  late Future<List<VideoProgress>> _futureProgress;
+
   bool _inited = false; // didChangeDependencies 1회 가드
 
   @override
@@ -34,11 +43,17 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
 
     lecture = args;
     _futureAssignments = DBService().getAssignmentsByLectureId(lecture.localId!);
+    _futureProgress = VideoProgressService().loadByLectureId(lecture.localId!);
     _inited = true;
   }
 
   void _reloadAssignments() {
     _futureAssignments = DBService().getAssignmentsByLectureId(lecture.localId!);
+    if (mounted) setState(() {});
+  }
+
+  void _reloadProgress() {
+    _futureProgress = VideoProgressService().loadByLectureId(lecture.localId!);
     if (mounted) setState(() {});
   }
 
@@ -150,8 +165,6 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
       );
     }
 
-    final double attendanceRate = 50; // TODO: 실제 값 연결
-
     return Scaffold(
       appBar: AppBar(
         title: Text(lecture.title),
@@ -165,116 +178,214 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
         backgroundColor: const Color(0xFF1A3276),
         foregroundColor: Colors.white,
       ),
-      body: Column(
-        children: [
-          // ------- 상단: 강의 헤더 (강의명 + 교수명 + 출석률) -------
-          _HeaderCard(
-            title: lecture.title,
-            professor: lecture.professor, // ✅ 교수명 노출
-            attendanceRate: attendanceRate,
-          ),
-
-          // ------- 과제 목록 -------
-          Expanded(
-            child: FutureBuilder<List<Assignment>>(
-              future: _futureAssignments,
+      body: RefreshIndicator(
+        onRefresh: () async {
+          _reloadAssignments();
+          _reloadProgress();
+        },
+        child: Column(
+          children: [
+            // ------- 상단: 강의 헤더 (강의명 + 교수명 + 출석률: 실제 계산) -------
+            FutureBuilder<List<VideoProgress>>(
+              future: _futureProgress,
               builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snap.hasError) {
-                  return Center(child: Text('과제를 불러오지 못했어요: ${snap.error}'));
-                }
-                final items = snap.data ?? [];
-                if (items.isEmpty) {
-                  return const Center(child: Text('등록된 과제가 없습니다.'));
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 섹션 타이틀
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.assignment_outlined, size: 18, color: Colors.black54),
-                          const SizedBox(width: 6),
-                          Text(
-                            '과제 (${items.length})',
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        itemCount: items.length,
-                        itemBuilder: (context, i) {
-                          final a = items[i];
-                          return Dismissible(
-                            key: ValueKey(a.id),
-                            direction: DismissDirection.endToStart,
-                            background: Container(
-                              alignment: Alignment.centerRight,
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              color: Colors.red,
-                              child: const Icon(Icons.delete, color: Colors.white),
-                            ),
-                            confirmDismiss: (_) async {
-                              final ok = await showDialog<bool>(
-                                context: context,
-                                builder: (dctx) => AlertDialog(
-                                  title: const Text('삭제할까요?'),
-                                  content: Text('과제 "${a.name}"를 삭제합니다.'),
-                                  actions: [
-                                    TextButton(
-                                        onPressed: () => Navigator.pop(dctx, false),
-                                        child: const Text('취소')),
-                                    TextButton(
-                                        onPressed: () => Navigator.pop(dctx, true),
-                                        child: const Text('삭제')),
-                                  ],
-                                ),
-                              );
-                              return ok ?? false;
-                            },
-                            onDismissed: (_) async {
-                              await DBService().deleteAssignment(a.id!);
-                              _reloadAssignments();
-                            },
-                            child: AssignmentCard(
-                              title: a.name,
-                              due: a.due,
-                              status: a.status,                 // ✅ '미제출' / '제출'
-                              lectureTitle: lecture.title,       // ✅ 강의색 일관성 (버그 수정)
-                              onTap: () => _openAssignmentSheet(initial: a),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
+                final rows = snap.data ?? const <VideoProgress>[];
+                final attendanceRate = ProgressCalcService.calcLectureAttendance(rows);
+                return _HeaderCard(
+                  title: lecture.title,
+                  professor: lecture.professor,
+                  attendanceRate: attendanceRate,
                 );
               },
             ),
-          ),
 
-          // 하단: 강의자료 (placeholder)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: const ListTile(
-                title: Text('강의자료'),
-                subtitle: Text('슬라이드, PDF, 영상 등 업로드됨'),
-                trailing: Icon(Icons.arrow_forward_ios),
+            // ------- 본문: 과제 + 동영상 진도 -------
+            Expanded(
+              child: ListView(
+                children: [
+                  // ----- 과제 섹션 -----
+                  FutureBuilder<List<Assignment>>(
+                    future: _futureAssignments,
+                    builder: (context, snap) {
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+                      if (snap.hasError) {
+                        return Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text('과제를 불러오지 못했어요: ${snap.error}'),
+                        );
+                      }
+                      final items = snap.data ?? [];
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 섹션 타이틀
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.assignment_outlined, size: 18, color: Colors.black54),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '과제 (${items.length})',
+                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  icon: const Icon(Icons.refresh, size: 18),
+                                  onPressed: _reloadAssignments,
+                                  tooltip: '과제 새로고침',
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (items.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              child: Text('등록된 과제가 없습니다.'),
+                            )
+                          else
+                            ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: items.length,
+                              itemBuilder: (context, i) {
+                                final a = items[i];
+                                return Dismissible(
+                                  key: ValueKey(a.id),
+                                  direction: DismissDirection.endToStart,
+                                  background: Container(
+                                    alignment: Alignment.centerRight,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    color: Colors.red,
+                                    child: const Icon(Icons.delete, color: Colors.white),
+                                  ),
+                                  confirmDismiss: (_) async {
+                                    final ok = await showDialog<bool>(
+                                      context: context,
+                                      builder: (dctx) => AlertDialog(
+                                        title: const Text('삭제할까요?'),
+                                        content: Text('과제 "${a.name}"를 삭제합니다.'),
+                                        actions: [
+                                          TextButton(
+                                              onPressed: () => Navigator.pop(dctx, false),
+                                              child: const Text('취소')),
+                                          TextButton(
+                                              onPressed: () => Navigator.pop(dctx, true),
+                                              child: const Text('삭제')),
+                                        ],
+                                      ),
+                                    );
+                                    return ok ?? false;
+                                  },
+                                  onDismissed: (_) async {
+                                    await DBService().deleteAssignment(a.id!);
+                                    _reloadAssignments();
+                                  },
+                                  child: AssignmentCard(
+                                    title: a.name,
+                                    due: a.due,
+                                    status: a.status,
+                                    lectureTitle: lecture.title,
+                                    onTap: () => _openAssignmentSheet(initial: a),
+                                  ),
+                                );
+                              },
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // ----- 동영상 진도 섹션 -----
+                  FutureBuilder<List<VideoProgress>>(
+                    future: _futureProgress,
+                    builder: (context, snap) {
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+                      if (snap.hasError) {
+                        return Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text('동영상 진도를 불러오지 못했어요: ${snap.error}'),
+                        );
+                      }
+                      final rows = snap.data ?? [];
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 섹션 타이틀
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.ondemand_video_outlined, size: 18, color: Colors.black54),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '동영상 진도 (${rows.length})',
+                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  icon: const Icon(Icons.refresh, size: 18),
+                                  onPressed: _reloadProgress,
+                                  tooltip: '진도 새로고침',
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          if (rows.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              child: Text('동영상 진도 데이터가 없습니다.'),
+                            )
+                          else
+                            ListView.separated(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: rows.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 8),
+                              itemBuilder: (context, i) {
+                                final vp = rows[i];
+                                final p = ProgressCalcService.calcItemPercent(vp); // 0~100
+                                return _VideoProgressTile(vp: vp, percent: p);
+                              },
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+
+                  // 하단: 강의자료 (placeholder)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      child: const ListTile(
+                        title: Text('강의자료'),
+                        subtitle: Text('슬라이드, PDF, 영상 등 업로드됨'),
+                        trailing: Icon(Icons.arrow_forward_ios),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -328,7 +439,7 @@ class _HeaderCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                // ✅ 교수명
+                // 교수명
                 Row(
                   children: [
                     const Icon(Icons.person_outline, size: 16, color: Colors.white70),
@@ -347,7 +458,7 @@ class _HeaderCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          // 오른쪽: 출석 링
+          // 오른쪽: 출석 링 (실제 값)
           _AttendanceRingBig(percent: attendanceRate),
         ],
       ),
@@ -387,4 +498,68 @@ class _AttendanceRingBig extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------- 동영상 진도 타일 ----------------
+class _VideoProgressTile extends StatelessWidget {
+  final VideoProgress vp;
+  final double percent; // 0~100
+
+  const _VideoProgressTile({required this.vp, required this.percent});
+
+  @override
+  Widget build(BuildContext context) {
+    final showWeek = (vp.week ?? '').trim().isNotEmpty ? '[${vp.week}] ' : '';
+    final req = vp.requiredTimeText ?? '-';
+    final tot = vp.totalTimeText ?? (vp.totalTimeSec != null ? _formatSec(vp.totalTimeSec!) : '-');
+    final displayPercent = percent.isFinite ? percent : 0;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        title: Text(
+          '$showWeek${vp.title ?? '(제목 없음)'}',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('출석인정 요구시간: $req'),
+              Text('총 학습시간: $tot'),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: (displayPercent / 100).clamp(0, 1),
+                  minHeight: 8,
+                  backgroundColor: Colors.black12,
+                ),
+              ),
+            ],
+          ),
+        ),
+        trailing: Text('${displayPercent.toStringAsFixed(0)}%'),
+      ),
+    );
+  }
+
+  String _formatSec(int sec) {
+    final h = sec ~/ 3600;
+    final m = (sec % 3600) ~/ 60;
+    final s = sec % 60;
+    if (h > 0) {
+      return '${_pad(h)}:${_pad(m)}:${_pad(s)}';
+    } else {
+      return '${_pad(m)}:${_pad(s)}';
+    }
+    // hh:mm:ss or mm:ss
+  }
+
+  String _pad(int n) => n.toString().padLeft(2, '0');
 }

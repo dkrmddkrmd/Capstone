@@ -22,7 +22,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
 
   final List<Widget> _pages = const [
     HomePage(),
-    DepartmentNoticePage(),
+    HomeListPage(),
     // DemonstratePage(), 기존 시위정보 띄우기
     CalendarPage(),
     ProfilePage(),

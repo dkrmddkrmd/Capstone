@@ -1,13 +1,16 @@
-// pages/home_page.dart (DB 우선 + 새로고침 = API 동기화 + 자격체크/리다이렉트)
+// pages/home_page.dart
 import 'package:flutter/material.dart';
 import '../models/assignment.dart';
 import '../models/lecture.dart';
 
-// ✅ Repository 기반
 import '../services/db_service.dart';
 import '../services/lecture_repository.dart';
-// ✅ 로그인 자격 보관 확인
 import '../services/secure_storage.dart';
+
+// 🔹 새로 추가
+import '../services/home_dashboard_service.dart';
+import '../models/video_progress.dart';
+import '../services/progress_calc_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -17,24 +20,26 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // TODO: 이후 colors.dart로 이동
-  static const Color smBlue = Color(0xFF1A3276); // 상명대 남색
+  static const Color smBlue = Color(0xFF1A3276);
 
   final _repo = LectureRepository();
+  final _dash = HomeDashboardService();
 
   List<Lecture> lectures = [];
   bool isLoading = true;
   String? errorMessage;
-  String? currentUserName; // ✅ 사용자 이름 저장
+  String? currentUserName;
 
+  // 대시보드 데이터
+  Future<List<DashboardAssignmentItem>> _futureTodayAssignments = Future.value(const <DashboardAssignmentItem>[]);
+  Future<List<DashboardVideoItem>> _futureIncompleteVideos = Future.value(const <DashboardVideoItem>[]);
 
   @override
   void initState() {
     super.initState();
-    _bootstrap(); // ✅ 먼저 자격 체크 → 로드/리다이렉트 분기
+    _bootstrap();
   }
 
-  /// ✅ 앱 진입 시 자격 보유 여부 확인 → 없으면 로그인으로 이동
   Future<void> _bootstrap() async {
     setState(() {
       isLoading = true;
@@ -45,7 +50,6 @@ class _HomePageState extends State<HomePage> {
     if (!mounted) return;
 
     if (!hasCreds) {
-      // 사용자 안내 후 로그인으로
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('로그인이 필요합니다')),
       );
@@ -53,58 +57,29 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    // 자격이 있으면 평소처럼 로드
     await _loadLecturesPreferLocal();
-    await _loadUserName(); // ✅ 사용자 이름 로드
-
+    await _loadUserName();
+    _reloadDashboard();
   }
+
+  void _reloadDashboard() {
+    _futureTodayAssignments = _dash.loadAssignmentsDueToday();
+    _futureIncompleteVideos = _dash.loadIncompleteVideos(limit: 10);
+    if (mounted) setState(() {});
+  }
+
   Future<void> _loadUserName() async {
     final db = DBService();
     final uid = await db.getAnySavedUserId();
+    if (!mounted) return;
 
     if (uid != null) {
       final row = await db.getUserByUserId(uid);
       final dbName = (row?['userName'] as String?)?.trim();
-      setState(() {
-        currentUserName = dbName;
-      });
-
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('디버그'),
-            content: Text('uid=$uid\nuserName=$dbName'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('확인'),
-              ),
-            ],
-          ),
-        );
-      }
-    } else {
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('디버그'),
-            content: const Text('DB에 저장된 User가 없습니다.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('확인'),
-              ),
-            ],
-          ),
-        );
-      }
+      setState(() => currentUserName = dbName);
     }
   }
 
-
-  /// ✅ DB 우선 로드 (DB가 비면 내부적으로 API→DB 저장 후 DB 반환)
   Future<void> _loadLecturesPreferLocal() async {
     setState(() {
       isLoading = true;
@@ -138,7 +113,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  /// ✅ 수동 새로고침: 자격 있으면 API 동기화 → DB 재조회
   Future<void> _onRefresh() async {
     final hasCreds = await SecureStore.hasCreds();
     if (!mounted) return;
@@ -164,9 +138,9 @@ class _HomePageState extends State<HomePage> {
       );
     }
     await _loadLecturesPreferLocal();
+    _reloadDashboard();
   }
 
-  // 더미 데이터 (개발/테스트용)
   List<Lecture> _getDummyLectures() {
     return [
       Lecture(
@@ -185,12 +159,6 @@ class _HomePageState extends State<HomePage> {
         assignments: [
           Assignment(name: '과제 1: 프로세스 스케줄링', due: '2025-09-20', status: '미제출'),
         ],
-      ),
-      Lecture(
-        title: '알고리즘',
-        professor: '박교수',
-        link: 'https://ecampus.smu.ac.kr/course/view.php?id=1003',
-        assignments: [],
       ),
     ];
   }
@@ -212,131 +180,230 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      body: RefreshIndicator(
+        onRefresh: _onRefresh,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
           children: [
+            // 상단 사용자 영역
             Row(
               children: [
-                const CircleAvatar(radius: 30, child: Icon(Icons.person, size: 30)),
+                const CircleAvatar(radius: 28, child: Icon(Icons.person, size: 28)),
                 const SizedBox(width: 12),
-                Text(
-                  currentUserName ?? '사용자', // ✅ DB 값 있으면 대체
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      currentUserName ?? '사용자',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    // Text(
+                    //   '오늘 할 일 한눈에 보기',
+                    //   style: TextStyle(fontSize: 13, color: Colors.black.withOpacity(0.6)),
+                    // ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: _onRefresh,
-                child: _buildLectureList(),
+            const SizedBox(height: 16),
+
+            // 오늘까지 과제
+            _SectionCard(
+              title: '오늘까지 과제',
+              color: const Color(0xFF1A3276),
+              child: FutureBuilder<List<DashboardAssignmentItem>>(
+                future: _futureTodayAssignments,
+                builder: (context, snap) {
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const _Loading();
+                  }
+                  if (snap.hasError) {
+                    return _ErrorText('과제를 불러오지 못했어요: ${snap.error}');
+                  }
+                  final items = snap.data ?? const <DashboardAssignmentItem>[];
+                  if (items.isEmpty) {
+                    return const _EmptyText('오늘까지 마감인 과제가 없습니다.');
+                  }
+                  return Column(
+                    children: items.map((it) {
+                      final dueStr = _fmtDue(it.due);
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.assignment_outlined),
+                        title: Text(it.assignment.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text('${it.lecture.title} · 마감 $dueStr'),
+                        trailing: Text(it.assignment.status, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        onTap: () {
+                          Navigator.pushNamed(context, '/lecturedetail', arguments: it.lecture);
+                        },
+                      );
+                    }).toList(),
+                  );
+                },
               ),
             ),
+
+            const SizedBox(height: 12),
+
+            // 미완료 동영상
+            _SectionCard(
+              title: '미완료 동영상',
+              color: const Color(0xFF314E9B),
+              child: FutureBuilder<List<DashboardVideoItem>>(
+                future: _futureIncompleteVideos,
+                builder: (context, snap) {
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const _Loading();
+                  }
+                  if (snap.hasError) {
+                    return _ErrorText('동영상을 불러오지 못했어요: ${snap.error}');
+                  }
+                  final items = snap.data ?? const <DashboardVideoItem>[];
+                  if (items.isEmpty) {
+                    return const _EmptyText('미완료 동영상이 없습니다.');
+                  }
+                  return Column(
+                    children: items.map((it) {
+                      final showWeek = (it.progress.week ?? '').trim().isNotEmpty ? '[${it.progress.week}] ' : '';
+                      final percent = it.percent.clamp(0, 100).toStringAsFixed(0);
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.ondemand_video_outlined),
+                        title: Text('$showWeek${it.progress.title ?? "(제목 없음)"}',
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(it.lecture.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        trailing: SizedBox(
+                          width: 80,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Expanded(
+                                child: LinearProgressIndicator(
+                                  value: (it.percent / 100).clamp(0, 1),
+                                  minHeight: 6,
+                                  backgroundColor: Colors.black12,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text('$percent%'),
+                            ],
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.pushNamed(context, '/lecturedetail', arguments: it.lecture);
+                        },
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // 기존 목록(전체 강의)
+            Text('내 강의 (${lectures.length})',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            if (isLoading)
+              const _Loading()
+            else if (lectures.isEmpty)
+              const _EmptyText('등록된 강의가 없습니다.')
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: lectures.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                itemBuilder: (context, index) {
+                  final lecture = lectures[index];
+                  return _LectureTileHome(lecture: lecture);
+                },
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLectureList() {
-    if (isLoading) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('강의 목록을 불러오는 중...'),
-          ],
-        ),
-      );
-    }
-
-    if (lectures.isEmpty) {
-      return ListView(
-        children: const [
-          SizedBox(height: 80),
-          Center(
-            child: Column(
-              children: [
-                Icon(Icons.school_outlined, size: 64, color: Colors.black38),
-                SizedBox(height: 16),
-                Text(
-                  '등록된 강의가 없습니다.',
-                  style: TextStyle(fontSize: 16, color: Colors.black54),
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-
-    return ListView.separated(
-      itemCount: lectures.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 6),
-      itemBuilder: (context, index) {
-        final lecture = lectures[index];
-        return LectureTile(lecture: lecture);
-      },
-    );
+  String _fmtDue(DateTime? d) {
+    if (d == null) return '-';
+    final two = (int n) => n.toString().padLeft(2, '0');
+    return '${d.year}-${two(d.month)}-${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
   }
 }
 
-// 🔹 출석률 링 위젯 (부드러운 애니메이션 포함)
-class AttendanceRing extends StatelessWidget {
-  final double percent; // 0~100
-  final double size;
+class _SectionCard extends StatelessWidget {
+  final String title;
   final Color color;
-  const AttendanceRing({
-    super.key,
-    required this.percent,
-    this.size = 44,
-    this.color = const Color(0xFF1A3276),
-  });
+  final Widget child;
+  const _SectionCard({required this.title, required this.color, required this.child});
 
   @override
   Widget build(BuildContext context) {
-    final value = (percent.clamp(0, 100)) / 100.0;
-    return SizedBox(
-      width: size,
-      height: size,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: value),
-        duration: const Duration(milliseconds: 650),
-        curve: Curves.easeOutCubic,
-        builder: (_, v, __) {
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              CircularProgressIndicator(
-                value: v,
-                strokeWidth: 5,
-                backgroundColor: color.withOpacity(0.15),
-                valueColor: AlwaysStoppedAnimation<Color>(color),
-              ),
-              Text(
-                '${(v * 100).round()}%',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          );
-        },
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Container(width: 6, height: 18, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
+              const SizedBox(width: 8),
+              Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+            ]),
+            const SizedBox(height: 10),
+            child,
+          ],
+        ),
       ),
     );
   }
 }
 
-// 🔹 강의 타일
-class LectureTile extends StatelessWidget {
+class _Loading extends StatelessWidget {
+  const _Loading();
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 24),
+      child: Center(child: CircularProgressIndicator()),
+    );
+  }
+}
+
+class _EmptyText extends StatelessWidget {
+  final String text;
+  const _EmptyText(this.text);
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Text(text, style: const TextStyle(color: Colors.black54)),
+    );
+  }
+}
+
+class _ErrorText extends StatelessWidget {
+  final String text;
+  const _ErrorText(this.text);
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Text(text, style: const TextStyle(color: Colors.red)),
+    );
+  }
+}
+
+/// 홈 리스트용 간단 타일 (강의 상세로 이동)
+class _LectureTileHome extends StatelessWidget {
   final Lecture lecture;
-  const LectureTile({required this.lecture, super.key});
+  const _LectureTileHome({required this.lecture});
 
   static const Color sangmyungBlue = Color(0xFF1A3276);
 
@@ -349,29 +416,18 @@ class LectureTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        leading: const AttendanceRing(
-          percent: 50, // TODO: 출석률 연동되면 교체
-          size: 44,
-          color: Colors.white,
-        ),
+        leading: const Icon(Icons.school, color: Colors.white),
         title: Text(
           lecture.title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        // ✅ 교수명 표시
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 2),
           child: Text(
             lecture.professor.isNotEmpty ? '${lecture.professor} 교수님' : '',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12.5,
-            ),
+            style: const TextStyle(color: Colors.white70, fontSize: 12.5),
           ),
         ),
         trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
@@ -382,4 +438,3 @@ class LectureTile extends StatelessWidget {
     );
   }
 }
-
