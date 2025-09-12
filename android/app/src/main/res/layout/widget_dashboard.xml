@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:orientation="vertical"
+    android:padding="10dp"
+    android:background="@android:color/white"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <!-- 오늘까지 과제 -->
+    <TextView
+        android:id="@+id/title_assign"
+        android:text="오늘까지 과제"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        android:textColor="#1A3276"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+    <TextView
+        android:id="@+id/assign1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:textColor="#333333"/>
+
+    <TextView
+        android:id="@+id/assign2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:textColor="#333333"/>
+
+    <TextView
+        android:id="@+id/assign3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:textColor="#333333"/>
+
+    <TextView
+        android:id="@+id/assign4"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:textColor="#333333"/>
+
+    <!-- 간격은 marginTop으로 처리 (RemoteViews 미지원 View 스페이서 금지) -->
+    <TextView
+        android:id="@+id/title_video"
+        android:text="미완료 동영상"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        android:textColor="#314E9B"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"/>
+
+    <TextView
+        android:id="@+id/video1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:textColor="#333333"/>
+
+    <TextView
+        android:id="@+id/video2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:textColor="#333333"/>
+
+    <TextView
+        android:id="@+id/video3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:textColor="#333333"/>
+
+    <TextView
+        android:id="@+id/video4"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:textColor="#333333"/>
+</LinearLayout>

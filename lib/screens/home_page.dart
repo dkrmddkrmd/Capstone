@@ -4,6 +4,7 @@ import '../models/assignment.dart';
 import '../models/lecture.dart';
 
 import '../services/db_service.dart';
+import '../services/home_widget_service.dart';
 import '../services/lecture_repository.dart';
 import '../services/secure_storage.dart';
 
@@ -65,6 +66,15 @@ class _HomePageState extends State<HomePage> {
   void _reloadDashboard() {
     _futureTodayAssignments = _dash.loadAssignmentsDueToday();
     _futureIncompleteVideos = _dash.loadIncompleteVideos(limit: 10);
+
+    // 위젯에도 반영 (각각 await → 타입 안전)
+    HomeWidgetService.pushFromFutures(
+      futureAssignments: _futureTodayAssignments,
+      futureVideos: _futureIncompleteVideos,
+      maxAssignments: 4,
+      maxVideos: 4,
+    );
+
     if (mounted) setState(() {});
   }
 
